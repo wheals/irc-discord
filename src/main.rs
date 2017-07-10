@@ -11,22 +11,20 @@ use std::env;
 use std::thread;
 
 fn discord_loop(mut connection: discord::Connection, server: IrcServer, irc_channel: String) {
-    println!("Ready.");
     loop {
         match connection.recv_event() {
-            Ok(Event::MessageCreate(message)) => {
-                println!("{} says: {}", message.author.name, message.content);
+            Ok(Event::MessageCreate(ref message)) if !message.author.bot => {
                 server.send_privmsg(&irc_channel,
                                     &message.content).unwrap();
                 if message.content == "!quit" {
                     println!("Quitting.");
-                    break
+                    ::std::process::exit(0)
                 }
             }
             Ok(_) => {}
             Err(discord::Error::Closed(code, body)) => {
                 println!("Gateway closed on us with code {:?}: {}", code, body);
-                break
+                ::std::process::exit(code.unwrap_or(0) as i32)
             }
             Err(err) => println!("Receive error: {:?}", err)
         }
