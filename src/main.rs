@@ -15,8 +15,8 @@ fn discord_loop(mut connection: discord::Connection, server: IrcServer, irc_chan
         match connection.recv_event() {
             Ok(Event::MessageCreate(message)) => {
                 println!("{} says: {}", message.author.name, message.content);
-                server.send_privmsg(irc_channel.as_str(),
-                                    message.content.as_str()).unwrap();
+                server.send_privmsg(&irc_channel,
+                                    &message.content).unwrap();
                 if message.content == "!quit" {
                     println!("Quitting.");
                     break
