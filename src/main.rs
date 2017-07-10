@@ -9,17 +9,15 @@ use irc::client::prelude::*;
 use std::env;
 use std::thread;
 
-fn discord_loop(discord: Discord) {
-    // Establish and use a websocket connection
-    let (mut connection, _) = discord.connect().expect("connect failed");
+fn discord_loop(mut connection: discord::Connection, server: IrcServer, irc_channel: String) {
     println!("Ready.");
     loop {
         match connection.recv_event() {
             Ok(Event::MessageCreate(message)) => {
                 println!("{} says: {}", message.author.name, message.content);
-                if message.content == "!test" {
-                    let _ = discord.send_message(message.channel_id, "This is a reply to the test.", "", false);
-                } else if message.content == "!quit" {
+                server.send_privmsg(irc_channel.as_str(),
+                                    message.content.as_str()).unwrap();
+                if message.content == "!quit" {
                     println!("Quitting.");
                     break
                 }
@@ -50,11 +48,16 @@ fn main() {
     let discord = Discord::from_bot_token(
         &env::var("DISCORD_TOKEN").expect("Expected token"),
     ).expect("discord login failed");
+    // Establish and use a websocket connection
+    let (connection, _) = discord.connect().expect("connect failed");
 
-    let irc_server = IrcServer::new("config.json").unwrap();
-    irc_server.identify().expect("IRC auth failed");
+    let config = Config::load("config.json").unwrap();
+    let irc_channel = config.channels()[0].to_string();
+    let rcv_server = IrcServer::from_config(config).unwrap();
+    rcv_server.identify().expect("IRC auth failed");
+    let send_server = rcv_server.clone();
 
-    let guard = thread::spawn(|| discord_loop(discord));
-    thread::spawn(|| irc_loop(irc_server));
+    let guard = thread::spawn(|| discord_loop(connection, send_server, irc_channel));
+    thread::spawn(|| irc_loop(rcv_server));
     guard.join().expect("no panics");
 }
