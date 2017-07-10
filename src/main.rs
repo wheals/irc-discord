@@ -7,14 +7,9 @@ use discord::model::Event;
 use irc::client::prelude::*;
 
 use std::env;
+use std::thread;
 
-fn main() {
-    /*
-    // Log in to Discord using a bot token from the environment
-    let discord = Discord::from_bot_token(
-        &env::var("DISCORD_TOKEN").expect("Expected token"),
-    ).expect("login failed");
-
+fn discord_loop(discord: Discord) {
     // Establish and use a websocket connection
     let (mut connection, _) = discord.connect().expect("connect failed");
     println!("Ready.");
@@ -37,9 +32,9 @@ fn main() {
             Err(err) => println!("Receive error: {:?}", err)
         }
     }
-    */
-    let server = IrcServer::new("config.json").unwrap();
-    server.identify().expect("not to fail");
+}
+
+fn irc_loop(server: IrcServer) {
     for message in server.iter() {
         let msg = message.expect("a message");
         let src = msg.source_nickname().unwrap_or("a ghost");
@@ -48,4 +43,18 @@ fn main() {
             _ => ()
         }
     }
+}
+
+fn main() {
+    // Log in to Discord using a bot token from the environment
+    let discord = Discord::from_bot_token(
+        &env::var("DISCORD_TOKEN").expect("Expected token"),
+    ).expect("discord login failed");
+
+    let irc_server = IrcServer::new("config.json").unwrap();
+    irc_server.identify().expect("IRC auth failed");
+
+    let guard = thread::spawn(|| discord_loop(discord));
+    thread::spawn(|| irc_loop(irc_server));
+    guard.join().expect("no panics");
 }
