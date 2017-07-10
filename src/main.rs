@@ -3,6 +3,7 @@ extern crate irc;
 
 use discord::Discord;
 use discord::model::Event;
+use discord::model::ChannelId;
 
 use irc::client::prelude::*;
 
@@ -32,12 +33,16 @@ fn discord_loop(mut connection: discord::Connection, server: IrcServer, irc_chan
     }
 }
 
-fn irc_loop(server: IrcServer) {
+fn irc_loop(server: IrcServer, discord: Discord) {
     for message in server.iter() {
         let msg = message.expect("a message");
         let src = msg.source_nickname().unwrap_or("a ghost");
         match msg.command {
-            Command::PRIVMSG(_, ref text) => println!("<{}> {}", src, text),
+            Command::PRIVMSG(_, ref text) => {
+                let to_send = format!("<{}> {}", src, text);
+                let _ = discord.send_message(ChannelId(333804611662118912),
+                                             &to_send, "", false);
+            },
             _ => ()
         }
     }
@@ -58,6 +63,6 @@ fn main() {
     let send_server = rcv_server.clone();
 
     let guard = thread::spawn(|| discord_loop(connection, send_server, irc_channel));
-    thread::spawn(|| irc_loop(rcv_server));
+    thread::spawn(|| irc_loop(rcv_server, discord));
     guard.join().expect("no panics");
 }
