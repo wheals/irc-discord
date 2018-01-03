@@ -9,16 +9,16 @@ use irc::client::prelude::*;
 
 use std::env;
 use std::thread;
+use std::collections::HashMap;
+use std::str::FromStr;
 
-fn discord_loop(mut connection: discord::Connection, server: IrcServer, irc_channel: String) {
+fn discord_loop(mut connection: discord::Connection, server: IrcServer, chanmap: HashMap<String, String>) {
     loop {
         match connection.recv_event() {
             Ok(Event::MessageCreate(ref message)) if !message.author.bot => {
-                server.send_privmsg(&irc_channel,
-                                    &message.content).unwrap();
-                if message.content == "!quit" {
-                    println!("Quitting.");
-                    ::std::process::exit(0)
+                let discord_channel = message.channel_id.to_string();
+                if let Some((irc, _)) = chanmap.iter().find(|&(_, disc)| &discord_channel == disc) {
+                    server.send_privmsg(irc, &message.content).unwrap();
                 }
             }
             Ok(_) => {}
@@ -31,17 +31,23 @@ fn discord_loop(mut connection: discord::Connection, server: IrcServer, irc_chan
     }
 }
 
-fn irc_loop(server: IrcServer, discord: Discord) {
+fn irc_loop(server: IrcServer, discord: Discord, chanmap: HashMap<String, String>) {
     for message in server.iter() {
         let msg = message.expect("a message");
         let src = msg.source_nickname().unwrap_or("a ghost");
         match msg.command {
-            Command::PRIVMSG(_, ref text) => {
+            Command::PRIVMSG(ref target, ref text) => {
                 let to_send = format!("<{}> {}", src, text);
-                let _ = discord.send_message(ChannelId(333804611662118912),
-                                             &to_send, "", false);
+                if let Some(discord_chan) = chanmap.get(target) {
+                    let _ = discord.send_message(ChannelId(u64::from_str(discord_chan).expect("invalid channel ID")),
+                                                 &to_send, "", false);
+                } else {
+                    println!("no output discord channel specified for message {}", to_send);
+                }
             },
-            _ => ()
+            _ => {
+                println!("{}", msg.to_string());
+            }
         }
     }
 }
@@ -55,12 +61,13 @@ fn main() {
     let (connection, _) = discord.connect().expect("connect failed");
 
     let config = Config::load("config.json").unwrap();
-    let irc_channel = config.channels()[0].to_string();
+    let chanmap = config.options.clone().unwrap();
+    let chanmap_ = config.options.clone().unwrap();
     let rcv_server = IrcServer::from_config(config).unwrap();
     rcv_server.identify().expect("IRC auth failed");
     let send_server = rcv_server.clone();
 
-    let guard = thread::spawn(|| discord_loop(connection, send_server, irc_channel));
-    thread::spawn(|| irc_loop(rcv_server, discord));
+    let guard = thread::spawn(|| discord_loop(connection, send_server, chanmap));
+    thread::spawn(|| irc_loop(rcv_server, discord, chanmap_));
     guard.join().expect("no panics");
 }
