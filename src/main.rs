@@ -7,7 +7,6 @@ use discord::model::ChannelId;
 
 use irc::client::prelude::*;
 
-use std::env;
 use std::thread;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -53,20 +52,21 @@ fn irc_loop(server: IrcServer, discord: Discord, chanmap: HashMap<String, String
 }
 
 fn main() {
-    // Log in to Discord using a bot token from the environment
-    let discord = Discord::from_bot_token(
-        &env::var("DISCORD_TOKEN").expect("Expected token"),
-    ).expect("discord login failed");
-    // Establish and use a websocket connection
-    let (connection, _) = discord.connect().expect("connect failed");
-
     let mut config = Config::load("config.json").unwrap();
+    let discord_token = config.options.as_mut().unwrap().remove("DISCORD_TOKEN").expect("token missing");
     let chanmap = config.options.clone().unwrap();
     let chanmap_ = chanmap.clone();
     config.channels = Some(chanmap.keys().map(|irc| irc.clone()).collect());
+
     let rcv_server = IrcServer::from_config(config).unwrap();
     rcv_server.identify().expect("IRC auth failed");
     let send_server = rcv_server.clone();
+
+    // Log in to Discord using a bot token from the environment
+    let discord = Discord::from_bot_token(&discord_token).expect("discord login failed");
+    // Establish and use a websocket connection
+    let (connection, _) = discord.connect().expect("connect failed");
+
 
     let guard = thread::spawn(|| discord_loop(connection, send_server, chanmap));
     thread::spawn(|| irc_loop(rcv_server, discord, chanmap_));
