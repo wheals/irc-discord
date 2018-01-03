@@ -46,7 +46,7 @@ fn irc_loop(server: IrcServer, discord: Discord, chanmap: HashMap<String, String
                 }
             },
             _ => {
-                println!("{}", msg.to_string());
+                print!("{}", msg.to_string());
             }
         }
     }
