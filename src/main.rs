@@ -37,7 +37,7 @@ fn irc_loop(server: IrcServer, discord: Discord, chanmap: HashMap<String, String
         let src = msg.source_nickname().unwrap_or("a ghost");
         match msg.command {
             Command::PRIVMSG(ref target, ref text) => {
-                let to_send = format!("<{}> {}", src, text);
+                let to_send = format!("`<{}>` `{}`", src, text);
                 if let Some(discord_chan) = chanmap.get(target) {
                     let _ = discord.send_message(ChannelId(u64::from_str(discord_chan).expect("invalid channel ID")),
                                                  &to_send, "", false);
