@@ -60,9 +60,10 @@ fn main() {
     // Establish and use a websocket connection
     let (connection, _) = discord.connect().expect("connect failed");
 
-    let config = Config::load("config.json").unwrap();
+    let mut config = Config::load("config.json").unwrap();
     let chanmap = config.options.clone().unwrap();
-    let chanmap_ = config.options.clone().unwrap();
+    let chanmap_ = chanmap.clone();
+    config.channels = Some(chanmap.keys().map(|irc| irc.clone()).collect());
     let rcv_server = IrcServer::from_config(config).unwrap();
     rcv_server.identify().expect("IRC auth failed");
     let send_server = rcv_server.clone();
